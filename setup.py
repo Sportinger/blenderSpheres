@@ -10,7 +10,7 @@ for collection in bpy.data.collections:
     bpy.data.collections.remove(collection)
 
 # Create a circle curve
-bpy.ops.curve.primitive_bezier_circle_add(radius=1)
+bpy.ops.curve.primitive_bezier_circle_add(radius=3)
 circle_curve = bpy.context.object
 
 # Create collections
@@ -19,6 +19,31 @@ bpy.context.scene.collection.children.link(main_camera_collection)
 
 additional_cameras_collection = bpy.data.collections.new('AdditionalCameras')
 bpy.context.scene.collection.children.link(additional_cameras_collection)
+
+spheres_collection = bpy.data.collections.new('Spheres')
+bpy.context.scene.collection.children.link(spheres_collection)
+
+domain_collection = bpy.data.collections.new('Domain')
+bpy.context.scene.collection.children.link(domain_collection)
+
+def create_cube(collection):
+    # Create a cube
+    bpy.ops.mesh.primitive_cube_add(size=1)
+    cube = bpy.context.object
+    cube.name = 'Domain'
+
+    # Link the cube to the specified collection ('Domain' in this case)
+    collection.objects.link(cube)
+
+    # Unlink the cube from the scene's default collection
+    bpy.context.scene.collection.objects.unlink(cube)
+
+    # Set the cube's display type to wireframe
+    cube.display_type = 'WIRE'
+
+    return cube
+
+create_cube(domain_collection)
 
 def create_camera(name, collection, path, offset, main_camera=None):
     bpy.ops.object.camera_add()
