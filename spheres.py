@@ -33,38 +33,36 @@ def random_position_within_domain(domain):
             random.uniform(-domain_scale.z / 2, domain_scale.z / 2))
 
 
-# Check if a sphere is in the camera's view
-def is_sphere_in_camera_view(camera, sphere):
-    # Transform sphere location to camera view space
+def project_sphere_on_camera(camera, sphere):
+    # Get the camera matrices
     cam_matrix = camera.matrix_world.inverted()
+    projection_matrix = camera.calc_matrix_camera(bpy.context.evaluated_depsgraph_get())
+
+    # Transform the sphere location to camera view space
     sphere_location = cam_matrix @ sphere.location
-    
-    # Camera parameters
-    cam_data = camera.data
-    frame = [mathutils.Vector(corner) for corner in cam_data.view_frame(scene=bpy.context.scene)]
-    
-    # Check if sphere is in the camera frustum
-    for corner in frame:
-        if (corner.x - sphere_location.x) * sphere_location.x > 0:
-            return False
-        if (corner.y - sphere_location.y) * sphere_location.y > 0:
-            return False
-        if (corner.z - sphere_location.z) * sphere_location.z > 0:
-            return False
+    sphere_location_2d = projection_matrix @ sphere_location.to_4d()
 
-    return True
+    # Normalize the 2D coordinates
+    sphere_location_2d /= sphere_location_2d.w
+    sphere_location_2d = (sphere_location_2d.xy + 1) / 2
 
-# Check for overlapping spheres in camera view
-def is_overlapping_in_camera_view(camera, sphere, other_spheres):
-    if not is_sphere_in_camera_view(camera, sphere):
-        return False
+    # Calculate the projected radius
+    sphere_radius = sphere.scale.x * 0.1
+    distance_to_camera = (sphere.location - camera.location).length
+    projected_radius = sphere_radius / distance_to_camera
 
-    for other in other_spheres:
-        distance = (sphere.location - other.location).length
-        if distance < (sphere.scale.x + other.scale.x) * 0.1:
-            return True
+    return sphere_location_2d.xy, projected_radius
 
-    return False
+def is_overlapping_in_camera_view_2d(camera, sphere1, sphere2):
+    # Project spheres on camera
+    loc1, radius1 = project_sphere_on_camera(camera, sphere1)
+    loc2, radius2 = project_sphere_on_camera(camera, sphere2)
+
+    # Check 2D overlap
+    distance = (loc1 - loc2).length
+    return distance < (radius1 + radius2)
+
+
 
 # Delete an object
 def delete_object(obj):
@@ -87,7 +85,12 @@ while len(spheres) < 100:
     location = random_position_within_domain(bpy.data.objects['Domain'])
     sphere = create_sphere(location, spheres_collection)
 
-    if is_overlapping_in_camera_view(camera, sphere, spheres):
+    overlapping = False
+    for existing_sphere in spheres:
+        if is_overlapping_in_camera_view_2d(camera, sphere, existing_sphere):
+            overlapping = True
+            break
+    if overlapping:
         delete_object(sphere)
     else:
         spheres.append(sphere)
