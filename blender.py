@@ -5,6 +5,10 @@ import math
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.delete() 
 
+# Delete all collections
+for collection in bpy.data.collections:
+    bpy.data.collections.remove(collection)
+
 # Create a circle curve
 bpy.ops.curve.primitive_bezier_circle_add(radius=1)
 circle_curve = bpy.context.object
@@ -16,11 +20,12 @@ bpy.context.scene.collection.children.link(main_camera_collection)
 additional_cameras_collection = bpy.data.collections.new('AdditionalCameras')
 bpy.context.scene.collection.children.link(additional_cameras_collection)
 
-# Function to create a camera and assign to collection
+# Function to create a camera, set its location to (0,0,0) and assign to a collection
 def create_camera(name, collection):
     bpy.ops.object.camera_add()
     camera = bpy.context.object
     camera.name = name
+    camera.location = (0, 0, 0)  # Set location to origin
     collection.objects.link(camera)
     bpy.context.scene.collection.objects.unlink(camera)
     return camera
@@ -31,19 +36,16 @@ main_camera = create_camera('MainCamera', main_camera_collection)
 # Create and position additional cameras
 additional_cameras = []
 for i in range(4):
-    angle = math.radians(90 * i)
+    angle = 90 * i
     camera_name = f'AdditionalCamera{i+1}'
     camera = create_camera(camera_name, additional_cameras_collection)
-    camera.location.x = math.cos(angle)
-    camera.location.y = math.sin(angle)
-    camera.location.z = 1  # Adjust the height as needed
     additional_cameras.append(camera)
 
 # Constrain cameras to follow path
 def constrain_to_path(camera, path):
     follow_path_constraint = camera.constraints.new(type='FOLLOW_PATH')
     follow_path_constraint.target = path
-    follow_path_constraint.use_curve_follow = True
+    follow_path_constraint.offset_factor = angle / 360
     bpy.context.view_layer.update()
 
 # Point cameras to center
@@ -55,7 +57,8 @@ def point_to_center(camera):
     bpy.context.view_layer.update()
 
 # Apply constraints to main camera and additional cameras
-for camera in [main_camera] + additional_cameras:
+for i, camera in enumerate([main_camera] + additional_cameras):
+    angle = 90 * i
     constrain_to_path(camera, circle_curve)
     point_to_center(camera)
 
