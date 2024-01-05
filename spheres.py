@@ -2,35 +2,19 @@ import bpy
 import random
 import mathutils
 
-# Create a new collection
-def create_collection(collection_name):
-    if collection_name not in bpy.data.collections:
-        new_collection = bpy.data.collections.new(collection_name)
-        bpy.context.scene.collection.children.link(new_collection)
-    else:
-        new_collection = bpy.data.collections[collection_name]
-    return new_collection
+# Function to delete all objects in a specified collection
+def delete_objects_in_collection(collection_name):
+    # Check if the collection exists in the current scene
+    if collection_name in bpy.data.collections:
+        # Get the collection
+        collection = bpy.data.collections[collection_name]
+        
+        # Select all objects in the collection
+        for obj in collection.objects:
+            bpy.data.objects.remove(obj, do_unlink=True)
 
-# Create a cube with transparent material
-def create_cube(collection):
-    bpy.ops.mesh.primitive_cube_add(size=1)
-    cube = bpy.context.object
-    collection.objects.link(cube)
-    bpy.context.scene.collection.objects.unlink(cube)
-
-    # Create a transparent material
-    mat = bpy.data.materials.new(name="TransparentMaterial")
-    mat.use_nodes = True
-    mat.node_tree.nodes["Principled BSDF"].inputs["Alpha"].default_value = 0.2
-    mat.blend_method = 'BLEND'
-
-    # Assign material to cube
-    if cube.data.materials:
-        cube.data.materials[0] = mat
-    else:
-        cube.data.materials.append(mat)
-
-    return cube
+# Call the function to delete objects in the 'Spheres' collection
+delete_objects_in_collection('Spheres')
 
 # Create a sphere
 def create_sphere(location, collection):
@@ -40,9 +24,14 @@ def create_sphere(location, collection):
     bpy.context.scene.collection.objects.unlink(sphere)
     return sphere
 
-# Generate a random position within the cube
-def random_position_within_cube(cube):
-    return (random.uniform(-0.5, 0.5), random.uniform(-0.5, 0.5), random.uniform(-0.5, 0.5))
+# Generate a random position within the domain
+def random_position_within_domain(domain):
+    # Get the scale of the domain
+    domain_scale = domain.scale
+    return (random.uniform(-domain_scale.x / 2, domain_scale.x / 2), 
+            random.uniform(-domain_scale.y / 2, domain_scale.y / 2), 
+            random.uniform(-domain_scale.z / 2, domain_scale.z / 2))
+
 
 # Check if a sphere is in the camera's view
 def is_sphere_in_camera_view(camera, sphere):
@@ -82,15 +71,20 @@ def delete_object(obj):
     bpy.data.objects.remove(obj, do_unlink=True)
 
 # Main execution
-domain_collection = create_collection("Domain")
-spheres_collection = create_collection("Spheres")
-
-create_cube(domain_collection)
+location = random_position_within_domain(bpy.data.objects['Domain'])
 spheres = []
 camera = bpy.data.objects['AdditionalCamera1']  # Assuming this camera already exists
 
-while len(spheres) < 10:
-    location = random_position_within_cube(bpy.data.objects['Cube'])
+# Erstellen Sie die 'Spheres' Collection, wenn sie nicht existiert
+if 'Spheres' not in bpy.data.collections:
+    spheres_collection = bpy.data.collections.new('Spheres')
+    bpy.context.scene.collection.children.link(spheres_collection)
+else:
+    spheres_collection = bpy.data.collections['Spheres']
+
+
+while len(spheres) < 100:
+    location = random_position_within_domain(bpy.data.objects['Domain'])
     sphere = create_sphere(location, spheres_collection)
 
     if is_overlapping_in_camera_view(camera, sphere, spheres):
