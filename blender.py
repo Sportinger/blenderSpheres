@@ -20,59 +20,50 @@ bpy.context.scene.collection.children.link(main_camera_collection)
 additional_cameras_collection = bpy.data.collections.new('AdditionalCameras')
 bpy.context.scene.collection.children.link(additional_cameras_collection)
 
-# Function to create a camera, set its location to (0,0,0) and assign to a collection
-def create_camera(name, collection):
+def create_camera(name, collection, path, offset, main_camera=None):
     bpy.ops.object.camera_add()
     camera = bpy.context.object
     camera.name = name
     camera.location = (0, 0, 0)  # Set location to origin
     collection.objects.link(camera)
     bpy.context.scene.collection.objects.unlink(camera)
-    return camera
-
-# Create main camera
-main_camera = create_camera('MainCamera', main_camera_collection)
-
-# Create and position additional cameras
-additional_cameras = []
-for i in range(4):
-    angle = 90 * i
-    camera_name = f'AdditionalCamera{i+1}'
-    camera = create_camera(camera_name, additional_cameras_collection)
-    additional_cameras.append(camera)
-
-# Constrain cameras to follow path
-def constrain_to_path(camera, path):
+    
+    # Constrain camera to follow path
     follow_path_constraint = camera.constraints.new(type='FOLLOW_PATH')
     follow_path_constraint.target = path
-    follow_path_constraint.offset_factor = angle / 360
+    follow_path_constraint.use_curve_follow = True
+    # Set offset based on the fraction of the path's length
+    follow_path_constraint.offset = offset
     bpy.context.view_layer.update()
 
-# Point cameras to center
-def point_to_center(camera):
+    # Point camera to center
     track_to_constraint = camera.constraints.new(type='TRACK_TO')
-    track_to_constraint.target = circle_curve
+    track_to_constraint.target = path
     track_to_constraint.track_axis = 'TRACK_NEGATIVE_Z'
     track_to_constraint.up_axis = 'UP_Y'
     bpy.context.view_layer.update()
 
-# Apply constraints to main camera and additional cameras
-for i, camera in enumerate([main_camera] + additional_cameras):
-    angle = 90 * i
-    constrain_to_path(camera, circle_curve)
-    point_to_center(camera)
+    # Link focal length to main camera
+    if main_camera is not None:
+        camera.data.driver_add("lens")
+        driver = camera.data.animation_data.drivers[0]
+        var = driver.driver.variables.new()
+        var.name = 'main_camera_lens'
+        var.type = 'SINGLE_PROP'
+        var.targets[0].id = main_camera  # Pass the main camera object
+        var.targets[0].data_path = 'data.lens'  # Access the lens property of the camera data
+        driver.driver.expression = 'main_camera_lens'
+    
+    # Update the scene to apply the changes
+    bpy.context.view_layer.update()
 
-# Link camera settings (focal length)
-def link_focal_length(from_camera, to_camera):
-    to_camera.data.driver_add("lens")
-    driver = to_camera.data.animation_data.drivers[-1]
-    driver.driver.type = 'AVERAGE'
-    var = driver.driver.variables.new()
-    var.name = "var"
-    var.targets[0].id = from_camera.data
-    var.targets[0].data_path = "lens"
-    driver.expression = "var"
+    return camera
 
-# Apply linking
-for camera in additional_cameras:
-    link_focal_length(main_camera, camera)
+# Create main camera
+main_camera = create_camera('MainCamera', main_camera_collection, circle_curve, 0)
+
+# Create additional cameras
+for i in range(4):
+    camera_name = f'AdditionalCamera{i+1}'
+    offset = i * 25  # Offset each additional camera by 25 units along the path
+    create_camera(camera_name, additional_cameras_collection, circle_curve, offset, main_camera)
